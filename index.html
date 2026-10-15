@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Browser AI Engineering Workbench (Transformers.js + WebGPU)</title>
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body data-theme="midnight">
+    <div class="app-shell">
+      <!-- Top Header Bar -->
+      <header class="app-header">
+        <div
+          class="brand"
+          data-tooltip-title="100% In-Browser AI Architecture"
+          data-tooltip-body="All inference runs locally in your browser inside a dedicated Web Worker thread. Zero data is sent to external APIs, and the UI stays locked at 60 FPS."
+          data-tooltip-code="new Worker(new URL('./worker.js', import.meta.url), { type: 'module' })"
+        >
+          <div class="brand-logo">⚡</div>
+          <div>
+            <h1>Browser AI Workbench <span class="edu-pill">Educational Demo</span></h1>
+            <p class="subtitle">Hover any control or <span class="edu-badge-inline">?</span> badge to learn how browser LLMs work</p>
+          </div>
+        </div>
+
+        <div class="header-controls">
+          <!-- 4-Way Mode Switcher -->
+          <div class="mode-switcher" role="tablist" aria-label="Model Mode">
+            <button
+              id="mode-text-btn"
+              class="mode-btn active"
+              data-mode="text"
+              type="button"
+              data-tooltip-title="Autoregressive Text Generation & Agents"
+              data-tooltip-body="Runs a quantized causal Language Model using ONNX Runtime Web. Streams tokens one-by-one via TextStreamer and parses structured agent tool calls."
+              data-tooltip-code="await pipeline('text-generation', modelId, { device: 'webgpu', dtype: 'q4f16' })"
+            >
+              💬 Chat &amp; Agents
+              <span id="mode-text-tag" class="model-tag">SmolLM2-360M</span>
+            </button>
+            <button
+              id="mode-image-btn"
+              class="mode-btn"
+              data-mode="image"
+              type="button"
+              data-tooltip-title="Autoregressive Text-to-Image Synthesis"
+              data-tooltip-body="Uses DeepSeek's Janus-Pro-1B to predict 576 discrete visual tokens (a 24×24 grid), then decodes them on WebGPU into a 384×384 pixel image."
+              data-tooltip-code="await model.generate_images({ ...inputs, min_new_tokens: 576, max_new_tokens: 576 })"
+            >
+              🎨 Image Gen
+              <span class="model-tag">Janus-1B</span>
+            </button>
+            <button
+              id="mode-vision-btn"
+              class="mode-btn"
+              data-mode="vision"
+              type="button"
+              data-tooltip-title="Multimodal Vision Understanding (Image-to-Text)"
+              data-tooltip-body="Encodes an input image via a SigLIP vision backbone into embeddings, merges them with your text prompt, and streams answers or LaTeX OCR."
+              data-tooltip-code="content: '<image_placeholder>\\nDescribe this image', images: [imageUrl]"
+            >
+              👁️ Vision QA
+              <span class="model-tag">Janus-1B</span>
+            </button>
+            <button
+              id="mode-chain-btn"
+              class="mode-btn"
+              data-mode="chain"
+              type="button"
+              data-tooltip-title="Multi-Model Chaining Pipelines"
+              data-tooltip-body="Orchestrates sequential handoffs between your chosen Text LLM and Janus-Pro-1B (e.g., expanding prompts, critiquing generated art, or remixing photos)."
+              data-tooltip-code="Step 1 Output (Text/Vision) ➔ Step 2 Input Prompt ➔ Final Synthesis"
+            >
+              🔗 Model Chains
+              <span class="model-tag">Multi-LLM</span>
+            </button>
+          </div>
+
+          <!-- WebGPU Status Badge -->
+          <div
+            id="webgpu-badge"
+            class="status-badge checking"
+            data-tooltip-title="Hardware Acceleration (WebGPU vs WASM)"
+            data-tooltip-body="WebGPU gives browser JavaScript direct access to GPU compute shaders for fast matrix multiplication. If shader-f16 is supported, models use 16-bit floating point activations; otherwise it falls back to FP32 or CPU WebAssembly (WASM)."
+            data-tooltip-code="const adapter = await navigator.gpu.requestAdapter(); adapter.features.has('shader-f16');"
+          >
+            <span class="dot"></span>
+            <span id="webgpu-text">Checking GPU...</span>
+            <span class="edu-badge">?</span>
+          </div>
+
+          <!-- Toggle Inspector Button -->
+          <button
+            id="toggle-inspector-btn"
+            class="secondary-btn"
+            type="button"
+            data-tooltip-title="LLM Inspector & Telemetry Drawer"
+            data-tooltip-body="Toggle the right-hand engineering panel to inspect live inference speed, TTFT latency, sampling hyperparameters, and system prompts."
+          >
+            🎛️ Inspector
+          </button>
+        </div>
+      </header>
+
+      <!-- Workspace Body: Main Column + Inspector Sidebar -->
+      <div class="workspace-body">
+        <!-- Left/Center Main Column -->
+        <div class="main-column">
+          <!-- Hugging Face CDN Model Selector Bar -->
+          <section class="model-bar">
+            <div class="model-selector-group">
+              <label
+                for="hf-model-select"
+                class="model-label"
+                data-tooltip-title="On-Demand Hugging Face CDN & Browser Cache"
+                data-tooltip-body="Model weights (.onnx files) are fetched over HTTPS from the Hugging Face Hub CDN on first load and automatically stored in the browser's Cache API (transformers-cache). Subsequent loads happen instantaneously from local disk!"
+                data-tooltip-code="CacheStorage: 'transformers-cache' (Zero server hosting costs)"
+              >
+                🤗 HF CDN Model <span class="edu-badge">?</span>
+              </label>
+
+              <!-- Text LLM Dropdown (shown in Text & Chain modes) -->
+              <select
+                id="hf-model-select"
+                class="hf-select"
+                data-tooltip-title="Choose an Open-Weights LLM"
+                data-tooltip-body="Smaller parameter models (135M–360M) download in seconds and stream at 40–100+ tok/s. Larger models (0.5B–1.7B) offer stronger reasoning and coding skills but require more GPU VRAM."
+              >
+                <optgroup label="Recommended Browser LLMs (WebGPU / ONNX)">
+                  <option value="HuggingFaceTB/SmolLM2-135M-Instruct">
+                    SmolLM2-135M-Instruct (Ultra-Fast • ~110 MB)
+                  </option>
+                  <option value="HuggingFaceTB/SmolLM2-360M-Instruct" selected>
+                    SmolLM2-360M-Instruct (Balanced Default • ~280 MB)
+                  </option>
+                  <option value="HuggingFaceTB/SmolLM2-1.7B-Instruct">
+                    SmolLM2-1.7B-Instruct (High Reasoning • ~1.1 GB)
+                  </option>
+                  <option value="Qwen/Qwen2.5-0.5B-Instruct">
+                    Qwen2.5-0.5B-Instruct (Multilingual &amp; Math • ~400 MB)
+                  </option>
+                  <option value="onnx-community/Qwen2.5-Coder-0.5B-Instruct">
+                    Qwen2.5-Coder-0.5B-Instruct (Coding Specialist • ~400 MB)
+                  </option>
+                  <option value="onnx-community/Llama-3.2-1B-Instruct-q4f16">
+                    Llama-3.2-1B-Instruct-q4f16 (Meta 1B • ~750 MB)
+                  </option>
+                </optgroup>
+                <optgroup label="Custom / Hub Search">
+                  <option value="__custom__">➕ Custom / Search Hugging Face Hub...</option>
+                </optgroup>
+              </select>
+
+              <!-- Quantization Selector -->
+              <select
+                id="hf-dtype-select"
+                class="hf-dtype-select"
+                data-tooltip-title="Model Quantization & Precision (dtype)"
+                data-tooltip-body="Quantization compresses 32-bit model weights into 4-bit or 8-bit integers so gigabyte-scale LLMs fit inside browser memory. 'q4f16' uses 4-bit weights with 16-bit GPU shader activations for optimal speed."
+                data-tooltip-code="dtype: 'q4f16' | 'q4' | 'q8' | 'fp16'"
+              >
+                <option value="auto" selected>dtype: Auto (q4f16/q4)</option>
+                <option value="q4f16">dtype: q4f16 (Fastest GPU)</option>
+                <option value="q4">dtype: q4 (Compat INT4)</option>
+                <option value="q8">dtype: q8 (8-bit High Prec)</option>
+                <option value="fp16">dtype: fp16 (Half Prec)</option>
+              </select>
+
+              <!-- Fixed Multimodal Model Badge (shown when in pure Image/Vision mode) -->
+              <code
+                id="active-model-id"
+                class="hidden"
+                data-tooltip-title="Unified Multimodal Architecture (Janus-Pro-1B)"
+                data-tooltip-body="Janus-Pro decouples visual encoding (for reading images) and visual token generation (for drawing images) within a single shared 1B-parameter transformer."
+              >onnx-community/Janus-Pro-1B-ONNX</code>
+
+              <span
+                id="model-status-pill"
+                class="pill pill-idle"
+                data-tooltip-title="Pipeline Lifecycle State"
+                data-tooltip-body="Indicates whether the ONNX model session is currently uninitialized, downloading from the CDN, or compiled into WebGPU buffers ready for instant inference."
+              >Not Loaded (CDN Cache)</span>
+            </div>
+
+            <div class="model-actions">
+              <button
+                id="browse-hub-btn"
+                class="secondary-btn"
+                type="button"
+                data-tooltip-title="Live Hugging Face Hub API Explorer"
+                data-tooltip-body="Queries the public Hugging Face Hub API for models tagged with library='transformers.js' and pipeline_tag='text-generation', or lets you load any custom repo ID."
+                data-tooltip-code="GET https://huggingface.co/api/models?library=transformers.js"
+              >
+                🔎 Search HF Hub
+              </button>
+              <button
+                id="preload-btn"
+                class="primary-btn btn-compact"
+                type="button"
+                data-tooltip-title="Preload & Compile Model into GPU"
+                data-tooltip-body="Downloads the model weights from Hugging Face CDN (if not already cached) and compiles the WebGPU compute pipelines ahead of your first prompt."
+              >
+                ⬇ Download / Load
+              </button>
+              <button
+                id="clear-btn"
+                class="ghost-btn"
+                type="button"
+                data-tooltip-title="Reset Conversation Context Window"
+                data-tooltip-body="Clears the multi-turn message history array so future prompts start with a fresh KV-cache context window."
+              >
+                Clear Feed
+              </button>
+            </div>
+          </section>
+
+          <!-- Live Hugging Face Hub Search & Custom Repo Drawer -->
+          <section id="hf-hub-drawer" class="hf-hub-drawer hidden">
+            <div class="hub-drawer-top">
+              <div class="hub-input-group">
+                <input
+                  id="hf-search-input"
+                  type="text"
+                  class="hub-search-input"
+                  placeholder="Search Hugging Face Hub (e.g. SmolLM2, Qwen, Llama, Gemma) or paste any repo ID..."
+                />
+                <button id="hf-search-btn" class="secondary-btn" type="button">
+                  Search Hub API
+                </button>
+                <button
+                  id="hf-use-custom-btn"
+                  class="primary-btn btn-compact"
+                  type="button"
+                  data-tooltip-title="Load Custom Repository ID"
+                  data-tooltip-body="Loads any Hugging Face repository containing an 'onnx/' folder with quantized ONNX weights compatible with Transformers.js."
+                >
+                  Use Repo ID
+                </button>
+              </div>
+              <button id="close-hub-drawer-btn" class="ghost-btn" type="button">✕ Close</button>
+            </div>
+            <div id="hf-hub-results" class="hf-hub-results">
+              <span class="hub-hint">
+                Search live <code>transformers.js</code> text-generation models hosted on the Hugging Face CDN, or paste any <code>owner/repo</code> ID above.
+              </span>
+            </div>
+          </section>
+
+          <!-- Context Toolbar for Vision Upload -->
+          <section id="vision-toolbar" class="context-toolbar hidden">
+            <div
+              class="vision-preview-box"
+              data-tooltip-title="Vision Encoder Input Tensor"
+              data-tooltip-body="AutoProcessor resizes and normalizes this image into pixel tensor values before feeding it into Janus-Pro-1B's vision encoder."
+            >
+              <img
+                id="vision-preview-img"
+                src="https://huggingface.co/datasets/Xenova/transformers.js-docs/resolve/main/quadratic_formula.png"
+                alt="Vision Input"
+              />
+              <div class="vision-meta">
+                <strong>Input Image for Vision Analysis <span class="edu-badge">?</span></strong>
+                <span id="vision-img-label">Sample: Quadratic Formula (OCR / LaTeX)</span>
+              </div>
+            </div>
+            <div class="vision-actions">
+              <label
+                class="file-upload-btn"
+                data-tooltip-title="Local File Blob URL (100% Private)"
+                data-tooltip-body="Reads your image directly in browser memory via URL.createObjectURL(file). Your image is never uploaded to any remote server."
+              >
+                📁 Upload Image
+                <input id="vision-file-input" type="file" accept="image/*" hidden />
+              </label>
+              <button
+                type="button"
+                class="secondary-btn sample-img-btn"
+                data-url="https://huggingface.co/datasets/Xenova/transformers.js-docs/resolve/main/quadratic_formula.png"
+                data-label="Sample: Quadratic Formula"
+                data-tooltip-title="Test Mathematical OCR to LaTeX"
+                data-tooltip-body="Loads a sample image of the quadratic formula so you can test converting visual math notation into LaTeX code."
+              >
+                ∑ Math Formula
+              </button>
+              <button
+                type="button"
+                class="secondary-btn sample-img-btn"
+                data-url="https://huggingface.co/datasets/Xenova/transformers.js-docs/resolve/main/tiger.jpg"
+                data-label="Sample: Wildlife Photo"
+                data-tooltip-title="Test Natural Scene Understanding"
+                data-tooltip-body="Loads a wildlife photograph to test visual question answering, object recognition, and scene description."
+              >
+                🐅 Tiger Photo
+              </button>
+            </div>
+          </section>
+
+          <!-- Context Toolbar for Multi-Model Chaining -->
+          <section id="chain-toolbar" class="context-toolbar hidden">
+            <div class="chain-selector-row">
+              <label
+                for="chain-select"
+                class="chain-label"
+                data-tooltip-title="Sequential Multi-Model Orchestration"
+                data-tooltip-body="Model chaining connects specialized models together: small fast text LLMs excel at prompt engineering & storytelling, while multimodal models handle visual perception & synthesis."
+              >
+                Select Chaining Workflow <span class="edu-badge">?</span>
+              </label>
+              <select id="chain-select" class="chain-select">
+                <option value="expand_to_image">
+                  Chain 1: AI Art Director (Selected Text LLM expands prompt ➔ Janus-Pro-1B generates image)
+                </option>
+                <option value="image_to_critic">
+                  Chain 2: Generate &amp; Critique Loop (Janus generates image ➔ Janus Vision inspects it ➔ Selected Text LLM writes story)
+                </option>
+                <option value="vision_to_remix">
+                  Chain 3: Visual Style Remix (Janus Vision analyzes input image ➔ Selected Text LLM reimagines style ➔ Janus generates new image)
+                </option>
+              </select>
+            </div>
+            <div id="chain-steps-visualizer" class="chain-steps"></div>
+          </section>
+
+          <!-- CDN File Download Progress Container -->
+          <section id="download-panel" class="download-panel hidden">
+            <div class="download-header">
+              <span id="download-header-text">Downloading model weights from Hugging Face CDN (cached in browser)...</span>
+            </div>
+            <div id="download-items" class="download-items"></div>
+          </section>
+
+          <!-- Main Conversation / Output Feed -->
+          <main id="chat-feed" class="chat-feed">
+            <div id="welcome-card" class="welcome-card">
+              <h2 id="welcome-title">Interactive Browser LLM Educational Lab</h2>
+              <p id="welcome-desc">
+                Learn how <strong>Transformers.js</strong> and <strong>WebGPU</strong> run Large Language Models
+                and Multimodal Vision-Language Models directly inside the browser. Hover any UI element with a
+                <span class="edu-badge-inline">?</span> badge to inspect the underlying concepts and code!
+              </p>
+              <div class="preset-section">
+                <p class="preset-label">Click a starter experiment below:</p>
+                <div id="preset-chips" class="preset-chips"></div>
+              </div>
+            </div>
+          </main>
+
+          <!-- Prompt Input Footer -->
+          <footer class="input-footer">
+            <form id="prompt-form" class="prompt-form">
+              <textarea
+                id="prompt-input"
+                rows="2"
+                placeholder="Ask a question, trigger an agent tool, or run a model chain..."
+                required
+              ></textarea>
+              <div class="form-buttons">
+                <button
+                  id="stop-btn"
+                  class="stop-btn hidden"
+                  type="button"
+                  data-tooltip-title="Interrupt Generation Loop"
+                  data-tooltip-body="Triggers InterruptableStoppingCriteria inside the Web Worker to cleanly halt autoregressive token generation after the current token step."
+                  data-tooltip-code="stoppingCriteria.interrupt()"
+                >
+                  ⏹ Stop
+                </button>
+                <button
+                  id="send-btn"
+                  class="primary-btn"
+                  type="submit"
+                  data-tooltip-title="Dispatch Job to Web Worker"
+                  data-tooltip-body="Sends your prompt and current hyperparameter settings to the background Web Worker via postMessage()."
+                >
+                  Run ↵
+                </button>
+              </div>
+            </form>
+          </footer>
+        </div>
+
+        <!-- Right Sidebar: LLM Inspector & Telemetry -->
+        <aside id="inspector-sidebar" class="inspector-sidebar">
+          <div class="inspector-section">
+            <div class="section-title-row">
+              <h3
+                data-tooltip-title="Real-Time Inference Telemetry"
+                data-tooltip-body="Key performance metrics used by ML engineers to benchmark on-device LLM responsiveness and hardware throughput."
+              >
+                ⚡ Live LLM Telemetry <span class="edu-badge">?</span>
+              </h3>
+              <span
+                id="active-stage-badge"
+                class="stage-badge"
+                data-tooltip-title="Active Execution Stage"
+                data-tooltip-body="Shows which model or pipeline step is currently executing inside the Web Worker."
+              >Idle</span>
+            </div>
+            <div class="telemetry-grid">
+              <div
+                class="telemetry-card"
+                data-tooltip-title="TTFT (Time To First Token)"
+                data-tooltip-body="Measures 'Prefill Latency': the time in milliseconds required to tokenize your input prompt, run the forward pass over the prompt context, and emit the very first output token."
+                data-tooltip-code="ttftMs = firstTokenTimestamp - requestStartTimestamp"
+              >
+                <span class="telemetry-label">TTFT (First Token) <span class="edu-badge">?</span></span>
+                <strong id="metric-ttft" class="telemetry-value">—</strong>
+              </div>
+              <div
+                class="telemetry-card"
+                data-tooltip-title="Autoregressive Decode Speed (TPS)"
+                data-tooltip-body="Tokens generated per second after prefill completes. Because each new token requires reading all model weights from memory, TPS is primarily bound by your GPU's memory bandwidth."
+                data-tooltip-code="tps = generatedTokens / decodeElapsedSeconds"
+              >
+                <span class="telemetry-label">Decode Speed <span class="edu-badge">?</span></span>
+                <strong id="metric-tps" class="telemetry-value">—</strong>
+              </div>
+              <div
+                class="telemetry-card"
+                data-tooltip-title="Generated Subword Tokens"
+                data-tooltip-body="LLMs read and write subword 'tokens' (via Byte-Pair Encoding) rather than characters. On average, 1 token ≈ 0.75 English words. For Janus image synthesis, 1 image = 576 visual tokens."
+              >
+                <span class="telemetry-label">Output Tokens <span class="edu-badge">?</span></span>
+                <strong id="metric-tokens" class="telemetry-value">—</strong>
+              </div>
+              <div
+                class="telemetry-card"
+                data-tooltip-title="End-to-End Turn Latency"
+                data-tooltip-body="Total wall-clock time for the entire generation request: Prefill Time (TTFT) + (Output Tokens × Time Per Output Token)."
+              >
+                <span class="telemetry-label">Total Latency <span class="edu-badge">?</span></span>
+                <strong id="metric-latency" class="telemetry-value">—</strong>
+              </div>
+            </div>
+          </div>
+
+          <div class="inspector-section">
+            <div class="section-title-row">
+              <h3
+                data-tooltip-title="Client-Side Agentic Tool Calling"
+                data-tooltip-body="Demonstrates how an LLM turns from a passive chatbot into an Agent: we inject tool definitions into the System Prompt and parse [TOOL:name(args)] patterns in JavaScript to manipulate the DOM or trigger other models."
+              >
+                🛠️ Browser Agent Tools <span class="edu-badge">?</span>
+              </h3>
+              <label
+                class="toggle-switch"
+                data-tooltip-title="Enable / Disable Tool Injection"
+                data-tooltip-body="When enabled, appends structured tool instructions to the system prompt and activates the client-side tool parser."
+              >
+                <input id="agent-tools-toggle" type="checkbox" checked />
+                <span class="slider"></span>
+              </label>
+            </div>
+            <p class="inspector-help">
+              Click any tool below to watch the LLM invoke client-side JavaScript functions:
+            </p>
+            <div class="tool-badges">
+              <button
+                type="button"
+                class="tool-pill"
+                data-demo-tool="theme"
+                data-tooltip-title="DOM Manipulation Tool: set_theme()"
+                data-tooltip-body="Instructs the LLM to emit [TOOL:set_theme(neon)], which our JS parser intercepts to update document.body.dataset.theme in real time."
+                data-tooltip-code="document.body.dataset.theme = chosenTheme;"
+              >
+                🎨 <code>set_theme(neon|emerald|sunset|midnight)</code>
+              </button>
+              <button
+                type="button"
+                class="tool-pill"
+                data-demo-tool="kpi"
+                data-tooltip-title="Generative UI Tool: render_kpi()"
+                data-tooltip-body="Instructs the LLM to emit structured metric parameters that render a styled HTML dashboard widget inside the chat stream."
+                data-tooltip-code="[TOOL:render_kpi(Title | Value | Delta)]"
+              >
+                📊 <code>render_kpi(title|value|delta)</code>
+              </button>
+              <button
+                type="button"
+                class="tool-pill"
+                data-demo-tool="imagine"
+                data-tooltip-title="Cross-Model Handoff Tool: imagine()"
+                data-tooltip-body="Allows the lightweight Text LLM to delegate image creation to Janus-Pro-1B by emitting [TOOL:imagine(prompt)]."
+                data-tooltip-code="[TOOL:imagine(prompt)] ➔ worker.postMessage({ type: 'generate_image' })"
+              >
+                🖼️ <code>imagine(visual_prompt)</code>
+              </button>
+            </div>
+          </div>
+
+          <div class="inspector-section">
+            <h3
+              data-tooltip-title="Logits Sampling Hyperparameters"
+              data-tooltip-body="At each step, the LLM outputs a probability distribution (logits) over its entire vocabulary (~49,000+ tokens). These sliders control how the next token is sampled from that distribution."
+            >
+              🎛️ Generation Hyperparameters <span class="edu-badge">?</span>
+            </h3>
+
+            <div
+              class="control-group"
+              data-tooltip-title="Temperature (Logit Scaling)"
+              data-tooltip-body="Divides the raw logit scores before applying Softmax. Low temperature (0.1–0.3) makes high-probability tokens dominate (best for code/facts). High temperature (0.8–1.4) flattens the distribution for more creative/varied wording."
+              data-tooltip-code="P(token_i) = exp(logit_i / T) / Σ exp(logit_j / T)"
+            >
+              <div class="control-header">
+                <label for="param-temp">Temperature <span class="edu-badge">?</span></label>
+                <span id="val-temp" class="control-val">0.70</span>
+              </div>
+              <input
+                id="param-temp"
+                type="range"
+                min="0.05"
+                max="1.50"
+                step="0.05"
+                value="0.70"
+              />
+              <span class="control-hint">Lower = deterministic &amp; factual • Higher = creative</span>
+            </div>
+
+            <div
+              class="control-group"
+              data-tooltip-title="Top-P (Nucleus Sampling)"
+              data-tooltip-body="Sorts candidate tokens by probability and keeps only the smallest 'nucleus' set whose cumulative probability reaches P (e.g., 0.90 = top 90% probability mass), cutting off bizarre low-probability tail tokens."
+              data-tooltip-code="top_p: 0.90 (discards bottom 10% unlikely tail tokens)"
+            >
+              <div class="control-header">
+                <label for="param-top-p">Top-P (Nucleus Sampling) <span class="edu-badge">?</span></label>
+                <span id="val-top-p" class="control-val">0.90</span>
+              </div>
+              <input
+                id="param-top-p"
+                type="range"
+                min="0.10"
+                max="1.00"
+                step="0.05"
+                value="0.90"
+              />
+            </div>
+
+            <div
+              class="control-group"
+              data-tooltip-title="Max New Tokens (Generation Budget)"
+              data-tooltip-body="Caps the maximum number of new tokens the autoregressive loop will generate before stopping, preventing runaway generation or KV-cache memory exhaustion."
+              data-tooltip-code="max_new_tokens: 512"
+            >
+              <div class="control-header">
+                <label for="param-max-tokens">Max New Tokens <span class="edu-badge">?</span></label>
+                <span id="val-max-tokens" class="control-val">512</span>
+              </div>
+              <input
+                id="param-max-tokens"
+                type="range"
+                min="64"
+                max="1024"
+                step="64"
+                value="512"
+              />
+            </div>
+          </div>
+
+          <div class="inspector-section">
+            <div class="section-title-row">
+              <h3
+                data-tooltip-title="System Prompt Conditioning"
+                data-tooltip-body="Prepended as the first message ({ role: 'system' }) in the chat template. Sets persistent behavioral instructions, tone, and output constraints for the model."
+                data-tooltip-code="messages: [{ role: 'system', content: systemPrompt }, ...]"
+              >
+                📝 System Prompt <span class="edu-badge">?</span>
+              </h3>
+              <button id="reset-sysprompt-btn" class="tiny-btn" type="button">Reset</button>
+            </div>
+            <textarea id="system-prompt-input" rows="4" class="sysprompt-textarea">You are a helpful, concise AI assistant running locally inside the user's web browser via WebGPU.</textarea>
+          </div>
+        </aside>
+      </div>
+    </div>
+
+    <!-- Floating Educational Tooltip Popover -->
+    <div id="edu-tooltip" class="edu-tooltip hidden" role="tooltip" aria-hidden="true">
+      <div class="edu-tooltip-header">
+        <span class="edu-tooltip-icon">💡</span>
+        <strong id="edu-tooltip-title">Concept Title</strong>
+      </div>
+      <p id="edu-tooltip-body" class="edu-tooltip-body"></p>
+      <pre id="edu-tooltip-code" class="edu-tooltip-code hidden"></pre>
+    </div>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
