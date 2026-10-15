@@ -65,6 +65,7 @@ body {
   background-color: var(--bg-primary);
   color: var(--text-primary);
   height: 100vh;
+  height: 100dvh;
   overflow: hidden;
   transition: background-color 0.25s ease, color 0.25s ease;
 }
@@ -73,6 +74,7 @@ body {
   display: flex;
   flex-direction: column;
   height: 100vh;
+  height: 100dvh;
   max-width: 1440px;
   margin: 0 auto;
   border-left: 1px solid var(--border-color);
@@ -1110,17 +1112,23 @@ body {
   display: none !important;
 }
 
-@media (max-width: 900px) {
-  .inspector-sidebar {
-    position: fixed;
-    right: 0;
-    top: 62px;
-    bottom: 0;
-    z-index: 30;
-    box-shadow: -8px 0 24px rgba(0, 0, 0, 0.5);
-  }
+/* Mobile Inspector Header & Backdrop (hidden on desktop) */
+.inspector-mobile-header {
+  display: none;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border-color);
+  font-size: 0.9rem;
 }
 
+.inspector-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(5, 8, 16, 0.65);
+  backdrop-filter: blur(2px);
+  z-index: 35;
+}
 
 /* Educational Badges & Floating Tooltip Popover */
 [data-tooltip-title] {
@@ -1152,10 +1160,10 @@ label.toggle-switch[data-tooltip-title] {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 15px;
-  height: 15px;
+  width: 17px;
+  height: 17px;
   border-radius: 50%;
-  font-size: 0.65rem;
+  font-size: 0.68rem;
   font-weight: 700;
   background: var(--accent-soft);
   border: 1px solid var(--accent);
@@ -1174,13 +1182,13 @@ label.toggle-switch[data-tooltip-title] {
 .edu-tooltip {
   position: fixed;
   z-index: 9999;
-  max-width: 340px;
+  max-width: min(350px, calc(100vw - 24px));
   background: #0f172a;
   border: 1px solid var(--accent);
   border-radius: 10px;
   padding: 11px 13px;
-  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.65);
-  pointer-events: none;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.72);
+  pointer-events: auto;
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -1201,9 +1209,31 @@ label.toggle-switch[data-tooltip-title] {
 .edu-tooltip-header {
   display: flex;
   align-items: center;
-  gap: 6px;
+  justify-content: space-between;
+  gap: 8px;
   font-size: 0.8rem;
   color: #fff;
+}
+
+.edu-tooltip-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.edu-tooltip-close {
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  font-size: 0.8rem;
+  padding: 2px 5px;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.edu-tooltip-close:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.1);
 }
 
 .edu-tooltip-body {
@@ -1223,4 +1253,287 @@ label.toggle-switch[data-tooltip-title] {
   font-size: 0.69rem;
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+/* Tablet & Mobile Responsive Breakpoints */
+@media (max-width: 960px) {
+  .inspector-sidebar {
+    position: fixed;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    width: min(360px, 88vw);
+    z-index: 40;
+    box-shadow: -8px 0 32px rgba(0, 0, 0, 0.65);
+    padding-top: calc(14px + env(safe-area-inset-top, 0px));
+    padding-bottom: calc(18px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .inspector-mobile-header {
+    display: flex;
+  }
+}
+
+@media (max-width: 680px) {
+  .app-shell {
+    border-left: none;
+    border-right: none;
+  }
+
+  .app-header {
+    padding: 10px 12px;
+    gap: 8px;
+  }
+
+  .brand {
+    gap: 8px;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .brand-logo {
+    width: 32px;
+    height: 32px;
+    font-size: 1rem;
+    flex-shrink: 0;
+  }
+
+  .brand h1 {
+    font-size: 0.92rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .edu-pill {
+    display: none;
+  }
+
+  .subtitle {
+    font-size: 0.68rem;
+    line-height: 1.25;
+  }
+
+  .header-controls {
+    width: 100%;
+    justify-content: space-between;
+    gap: 6px;
+  }
+
+  /* Horizontally scrollable 4-tab mode bar on mobile */
+  .mode-switcher {
+    order: 2;
+    width: 100%;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .mode-switcher::-webkit-scrollbar {
+    display: none;
+  }
+
+  .mode-btn {
+    flex: 1 0 auto;
+    justify-content: center;
+    padding: 7px 10px;
+    font-size: 0.76rem;
+    white-space: nowrap;
+  }
+
+  .status-badge {
+    padding: 5px 9px;
+    font-size: 0.69rem;
+  }
+
+  #toggle-inspector-btn {
+    padding: 5px 10px;
+    font-size: 0.74rem;
+  }
+
+  /* Model Selector Bar on Mobile */
+  .model-bar {
+    padding: 8px 12px;
+    gap: 8px;
+  }
+
+  .model-selector-group {
+    width: 100%;
+    gap: 6px;
+  }
+
+  .model-label {
+    font-size: 0.74rem;
+  }
+
+  .hf-select {
+    flex: 1;
+    min-width: 0;
+    max-width: 100%;
+    font-size: 16px; /* Prevents iOS Safari zoom on focus */
+    padding: 6px 8px;
+  }
+
+  .hf-dtype-select {
+    font-size: 16px;
+    padding: 6px 8px;
+  }
+
+  .model-actions {
+    width: 100%;
+    justify-content: space-between;
+    gap: 6px;
+  }
+
+  .model-actions button {
+    flex: 1;
+    justify-content: center;
+    padding: 7px 8px !important;
+    font-size: 0.73rem !important;
+    white-space: nowrap;
+  }
+
+  /* HF Hub Drawer on Mobile */
+  .hf-hub-drawer {
+    padding: 10px 12px;
+  }
+
+  .hub-input-group {
+    width: 100%;
+    min-width: 0;
+    flex-wrap: wrap;
+  }
+
+  .hub-search-input {
+    width: 100%;
+    flex: 1 1 100%;
+    font-size: 16px;
+  }
+
+  .hub-input-group button {
+    flex: 1;
+  }
+
+  .hf-hub-results {
+    grid-template-columns: 1fr;
+    max-height: 150px;
+  }
+
+  /* Vision & Chain Toolbars on Mobile */
+  .context-toolbar {
+    padding: 8px 12px;
+    gap: 8px;
+  }
+
+  .vision-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .vision-actions > * {
+    flex: 1;
+    justify-content: center;
+    text-align: center;
+    font-size: 0.72rem;
+    padding: 6px 8px;
+  }
+
+  .chain-select {
+    width: 100%;
+    min-width: 0;
+    font-size: 16px;
+  }
+
+  .chain-steps {
+    gap: 5px;
+  }
+
+  .chain-step-node {
+    font-size: 0.69rem;
+    padding: 4px 8px;
+  }
+
+  /* Download Progress Panel */
+  .download-panel {
+    padding: 8px 12px;
+  }
+
+  .download-item {
+    grid-template-columns: minmax(90px, 130px) 1fr 38px;
+    gap: 6px;
+    font-size: 0.68rem;
+  }
+
+  /* Chat Feed & Welcome Card */
+  .chat-feed {
+    padding: 12px;
+    gap: 12px;
+  }
+
+  .welcome-card {
+    padding: 16px 14px;
+    border-radius: 12px;
+  }
+
+  .welcome-card h2 {
+    font-size: 1.02rem;
+  }
+
+  .welcome-card p {
+    font-size: 0.8rem;
+  }
+
+  .chip-btn {
+    width: 100%;
+    border-radius: 10px;
+    padding: 8px 11px;
+    font-size: 0.76rem;
+  }
+
+  .message {
+    max-width: 94%;
+  }
+
+  .message-bubble {
+    padding: 10px 12px;
+    font-size: 0.85rem;
+  }
+
+  .image-gen-card {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .image-gen-card img {
+    width: 100%;
+    max-width: 300px;
+    height: auto;
+    aspect-ratio: 1 / 1;
+  }
+
+  /* Input Footer */
+  .input-footer {
+    padding: 10px 12px;
+    padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .prompt-form {
+    gap: 8px;
+  }
+
+  #prompt-input {
+    font-size: 16px; /* Prevents iOS Safari zoom */
+    padding: 9px 11px;
+  }
+
+  .primary-btn,
+  .stop-btn {
+    padding: 10px 13px;
+    font-size: 0.8rem;
+  }
+
+  .sysprompt-textarea {
+    font-size: 16px;
+  }
 }

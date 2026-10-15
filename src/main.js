@@ -1259,8 +1259,43 @@ resetSyspromptBtn.addEventListener("click", () => {
   systemPromptInput.value = DEFAULT_SYS_PROMPT;
 });
 
+const inspectorBackdrop = document.getElementById("inspector-backdrop");
+const closeInspectorBtn = document.getElementById("close-inspector-btn");
+
+function setInspectorOpen(open) {
+  inspectorSidebar.classList.toggle("hidden", !open);
+  if (inspectorBackdrop) {
+    const isMobile = window.innerWidth <= 960;
+    inspectorBackdrop.classList.toggle("hidden", !(open && isMobile));
+  }
+}
+
+// Start with Inspector drawer closed on mobile/tablet so it doesn't cover the chat screen
+if (window.innerWidth <= 960) {
+  setInspectorOpen(false);
+}
+
 toggleInspectorBtn.addEventListener("click", () => {
-  inspectorSidebar.classList.toggle("hidden");
+  const isCurrentlyHidden = inspectorSidebar.classList.contains("hidden");
+  setInspectorOpen(isCurrentlyHidden);
+});
+
+if (closeInspectorBtn) {
+  closeInspectorBtn.addEventListener("click", () => {
+    setInspectorOpen(false);
+  });
+}
+
+if (inspectorBackdrop) {
+  inspectorBackdrop.addEventListener("click", () => {
+    setInspectorOpen(false);
+  });
+}
+
+window.addEventListener("resize", () => {
+  if (window.innerWidth > 960 && inspectorBackdrop) {
+    inspectorBackdrop.classList.add("hidden");
+  }
 });
 
 document.querySelectorAll(".tool-pill").forEach((btn) => {
@@ -1269,6 +1304,10 @@ document.querySelectorAll(".tool-pill").forEach((btn) => {
     currentMode = "text";
     agentToolsToggle.checked = true;
     updateModeUI();
+
+    if (window.innerWidth <= 960) {
+      setInspectorOpen(false);
+    }
 
     const demoType = btn.dataset.demoTool;
     if (demoType === "theme") {
@@ -1383,12 +1422,12 @@ promptForm.addEventListener("submit", async (e) => {
 updateModeUI();
 worker.postMessage({ type: "check_webgpu" });
 
-
-// Educational Floating Tooltip Controller
+// Educational Floating Tooltip Controller (Desktop Hover + Mobile Touch)
 const eduTooltip = document.getElementById("edu-tooltip");
 const eduTooltipTitle = document.getElementById("edu-tooltip-title");
 const eduTooltipBody = document.getElementById("edu-tooltip-body");
 const eduTooltipCode = document.getElementById("edu-tooltip-code");
+const eduTooltipClose = document.getElementById("edu-tooltip-close");
 
 function showEduTooltip(targetEl) {
   if (!eduTooltip || !targetEl) return;
@@ -1435,9 +1474,46 @@ function hideEduTooltip() {
   eduTooltip.setAttribute("aria-hidden", "true");
 }
 
+if (eduTooltipClose) {
+  eduTooltipClose.addEventListener("click", (e) => {
+    e.stopPropagation();
+    hideEduTooltip();
+  });
+}
+
+// Desktop hover support
 document.addEventListener("mouseover", (e) => {
+  if (e.target.closest("#edu-tooltip")) return;
   const trigger = e.target.closest("[data-tooltip-title]");
   if (trigger) {
+    showEduTooltip(trigger);
+  } else {
+    hideEduTooltip();
+  }
+});
+
+// Touch / Click support for ? educational badges on mobile
+document.addEventListener("click", (e) => {
+  if (e.target.closest("#edu-tooltip")) return;
+
+  const badge = e.target.closest(".edu-badge, .edu-badge-inline");
+  if (badge) {
+    const trigger = badge.closest("[data-tooltip-title]");
+    if (trigger) {
+      e.preventDefault();
+      e.stopPropagation();
+      showEduTooltip(trigger);
+      return;
+    }
+  }
+
+  // Also allow tapping non-button containers (like telemetry cards or brand header) on touchscreens
+  const trigger = e.target.closest("[data-tooltip-title]");
+  if (
+    trigger &&
+    !trigger.matches("button, select, input, textarea, label") &&
+    !e.target.closest("button, select, input, textarea, label")
+  ) {
     showEduTooltip(trigger);
   } else {
     hideEduTooltip();

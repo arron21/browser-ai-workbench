@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>Browser AI Engineering Workbench (Transformers.js + WebGPU)</title>
     <link rel="stylesheet" href="/src/style.css" />
   </head>
@@ -19,7 +19,7 @@
           <div class="brand-logo">⚡</div>
           <div>
             <h1>Browser AI Workbench <span class="edu-pill">Educational Demo</span></h1>
-            <p class="subtitle">Hover any control or <span class="edu-badge-inline">?</span> badge to learn how browser LLMs work</p>
+            <p class="subtitle">Hover or tap any <span class="edu-badge-inline">?</span> badge to learn how browser LLMs work</p>
           </div>
         </div>
 
@@ -379,8 +379,16 @@
           </footer>
         </div>
 
+        <!-- Mobile Backdrop for Inspector Sidebar -->
+        <div id="inspector-backdrop" class="inspector-backdrop hidden"></div>
+
         <!-- Right Sidebar: LLM Inspector & Telemetry -->
         <aside id="inspector-sidebar" class="inspector-sidebar">
+          <div class="inspector-mobile-header">
+            <strong>🎛️ LLM Inspector &amp; Telemetry</strong>
+            <button id="close-inspector-btn" class="ghost-btn" type="button">✕ Close</button>
+          </div>
+
           <div class="inspector-section">
             <div class="section-title-row">
               <h3
@@ -578,8 +586,11 @@
     <!-- Floating Educational Tooltip Popover -->
     <div id="edu-tooltip" class="edu-tooltip hidden" role="tooltip" aria-hidden="true">
       <div class="edu-tooltip-header">
-        <span class="edu-tooltip-icon">💡</span>
-        <strong id="edu-tooltip-title">Concept Title</strong>
+        <div class="edu-tooltip-title-wrap">
+          <span class="edu-tooltip-icon">💡</span>
+          <strong id="edu-tooltip-title">Concept Title</strong>
+        </div>
+        <button id="edu-tooltip-close" class="edu-tooltip-close" type="button" aria-label="Close tooltip">✕</button>
       </div>
       <p id="edu-tooltip-body" class="edu-tooltip-body"></p>
       <pre id="edu-tooltip-code" class="edu-tooltip-code hidden"></pre>
